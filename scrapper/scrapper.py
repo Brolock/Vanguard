@@ -1,73 +1,108 @@
 import requests
 from bs4 import BeautifulSoup
-
 import json
 
-cardlist_test_url="https://en.cf-vanguard.com/cardlist/cardsearch/?expansion=167&view=image&view=text&sort=no"
+from dateutil import parser as date_parser
+import re
+
+VANGUARD_ROOT_URL="https://en.cf-vanguard.com"
 
 def scrap_card_data(card_url: str):
     print(card_url)
     page = requests.get(card_url)
     soup = BeautifulSoup(page.content, "html.parser")
 
-    extension = soup.find("h3", class_="style-h3").text.strip()
-    
     details = soup.find("div", class_="cardlist_detail")
-    image_url = details.find("div", class_="image").find("img")["src"].strip()
-
     data = details.find("div", class_="data")
+    card_data_keys = [
+            "name",
+            "type",
+            "nation",
+            "race",
+            "grade",
+            "power",
+            "critical",
+            "shield",
+            "skill",
+            "gift",
+            "effect",
+            "flavor",
+            "regulation",
+            "number",
+            "rarity",
+            ]
 
-    name =   data.find("div", class_="name").text.strip()
-    Type =   data.find("div", class_="type").text.strip()
-    nation = data.find("div", class_="nation").text.strip()
-    race =   data.find("div", class_="race").text.strip()
+    card_data = {}
+    for key in card_data_keys:
+        card_data[key] = data.find("div", class_=key).text.strip()
 
-    grade =  data.find("div", class_="grade").text.strip()
-    power =  data.find("div", class_="power").text.strip()
-    crit =   data.find("div", class_="critical").text.strip()
-    shield = data.find("div", class_="shield").text.strip()
-    skill =  data.find("div", class_="skill").text.strip()
-    gift =   data.find("div", class_="gift").text.strip()
-    effect = data.find("div", class_="effect").text.strip()
+    # illustrator has a typo on the site
+    card_data["illustrator"] = data.find("div", class_="illstrator").text.strip()
 
-    
-    flavor =      data.find("div", class_="flavor").text.strip()
-    regulation =  data.find("div", class_="regulation").text.strip()
-    number =      data.find("div", class_="number").text.strip()
-    rarity =      data.find("div", class_="rarity").text.strip()
+    # image has a different dom
+    image_url = details.find("div", class_="image").find("img")["src"].strip()
+    card_data["image_url"] =  image_url
 
-    # illustrator has a typo
-    illustrator = data.find("div", class_="illstrator").text.strip()
+    return card_data
 
-    card_data = {
-            "Name": name,
-            "Type": Type,
-            "Nation": nation,
-            "Race": race,
-            "Grade": grade,
-            "Power": power,
-            "Critical": crit,
-            "Shield": shield,
-            "Skill": skill,
-            "Gift": gift,
-            "Effect": effect,
-            "Flavor": flavor,
-            "Regulation": regulation,
-            "CardNumber": number,
-            "Rarity": rarity
-            }
 
-    with open("{}.json".format(number.replace('/', '-')), 'w') as card_file:
-        json.dump(card_data, card_file)
-
-def scrap_cards_from_url(root_url: str, cardlist_url: str):
+def scrap_cards_from_expansion(cardlist_url: str, output_file: str):
     page = requests.get(cardlist_url)
     soup = BeautifulSoup(page.content, "html.parser")
 
-    card_list = soup.find("div", class_="cardlist_imagelist").find_all('li')
+    expansion_url = re.match(r".+?(\?expansion=\d+)", cardlist_url).group() + "&page="
 
-    for card in card_list:
-        card_url = card.find('a')['href']
-        scrap_card_data(root_url + card_url)
+    page_number = 1
+    with open(output_file, 'w') as output_file:
+    # Loop through pages of the cardlist (no need for headless navigation)
+        while (page := requests.get(expansion_url + str(page_number))).ok:
+            page_number += 1
+            soup = BeautifulSoup(page.content, "html.parser")
+            card_list = soup.find("div", id="cardlist-container").find_all("li")
 
-scrap_cards_from_url("https://en.cf-vanguard.com/", cardlist_test_url)
+            for card in card_list:
+                card_url = card.find('a')["href"]
+                card_data = scrap_card_data(VANGUARD_ROOT_URL + card_url)
+                json.dump(card_data, output_file)
+                output_file.write('\n')
+
+def scrap_expansions(expansions_url: str):
+    page = requests.get(expansions_url)
+    soup = BeautifulSoup(page.content, "html.parser").find("div", class_="cardlist_main")
+
+    with open(f"db/database.json", 'w') as db_file:
+        expansions_per_year = soup.find_all("div", class_="expansion-year")
+        for yearly_expansions in expansions_per_year:
+            expansions = yearly_expansions.find_all("div", class_="product-item")
+
+            for expansion in expansions:
+                expansion_url = expansion.find('a')["href"]
+                img_url = expansion.find("img")["src"].strip()
+
+                category = expansion.find("div", class_="category").text.strip()
+                title = expansion.find("div", class_="title").text.strip()
+                release_date = expansion.find("div", class_="release").text.strip()
+                clan = expansion.find("div", class_="clan").text.strip()
+
+                # Remove punctuation except '-', '_', '[' and ']'
+                expansion_file = re.sub(r'[^\w\s\-_\[\]]', '', title, re.UNICODE)
+                expansion_file = re.sub(r'\s+', '_', expansion_file, re.UNICODE)
+                expansion_file += ".json"
+                # Clean up date string
+                re.sub("(?i)(\(.+\)|Release)", '', release_date).strip()
+
+                expansion_data = {
+                        "category": category,
+                        "title": title,
+                        "release_date": release_date,
+                        "clan": clan,
+                        "image_url": img_url,
+                        "expansion_file": expansion_file
+                        }
+                json.dump(expansion_data, db_file)
+                db_file.write('\n')
+                
+                scrap_cards_from_expansion(VANGUARD_ROOT_URL + expansion_url, "db/" + expansion_file)
+
+if __name__ == "__main__": 
+    scrap_expansions(VANGUARD_ROOT_URL + "/cardlist")
