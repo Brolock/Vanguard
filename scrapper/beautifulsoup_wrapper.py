@@ -22,9 +22,10 @@ class SoupWrapper:
 
     def find_all(self, *args, **kwargs):
         output = self.wrapped_soup.find_all(*args, **kwargs)
+        result = []
         for elem in output:
-            elem = SoupWrapper(elem)
-        return output
+            result.append(SoupWrapper(elem))
+        return result
 
     """
     Returns the string None when an item is not found
