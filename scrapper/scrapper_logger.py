@@ -15,7 +15,7 @@ def get_file_handler(logfile: str):
     file_handler.setLevel(logging.INFO)
     return file_handler
 
-def get_logger(logfile: str):
+def get_logger(logfile: str, logger_name: str = "scrapper_logger"):
     logger = logging.getLogger("scrapper_logger")
     logger.setLevel(logging.DEBUG)
     logger.addHandler(get_console_handler())

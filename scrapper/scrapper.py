@@ -1,5 +1,4 @@
 import requests
-from bs4 import BeautifulSoup
 import json
 from pathlib import Path
 
@@ -7,13 +6,13 @@ from dateutil import parser as date_parser
 import re
 import argparse
 
-from beautifulsoup_wrapper import SoupWrapper
-import scrapper_logger
+from beautifulsoup_wrapper import WrappedSoup
+from scrapper_logger import get_logger
 
 
 # Global logger object
-logger = "NOTSET"
 DB_DIR = "db"
+logger = get_logger(Path(DB_DIR) / "defaultlogger.log", "default_logger")
 VANGUARD_ROOT_URL="https://en.cf-vanguard.com"
 
 
@@ -35,7 +34,7 @@ def clean_card_dict(card_dict: dict):
 
 def scrap_card_data(card_url: str):
     page = requests.get(card_url)
-    soup = SoupWrapper(BeautifulSoup(page.content, "html.parser"))
+    soup = WrappedSoup(page.content, "html.parser")
 
     details = soup.find("div", class_="cardlist_detail")
     data = details.find("div", class_="data")
@@ -75,7 +74,7 @@ def scrap_card_data(card_url: str):
 
 def scrap_cards_from_expansion(cardlist_url: str, output_file: str):
     page = requests.get(cardlist_url)
-    soup = SoupWrapper(BeautifulSoup(page.content, "html.parser"))
+    soup = WrappedSoup(page.content, "html.parser")
 
     expansion_url = re.match(r".+?(\?expansion=\d+)", cardlist_url).group() + "&page="
 
@@ -84,7 +83,7 @@ def scrap_cards_from_expansion(cardlist_url: str, output_file: str):
     # Loop through pages of the cardlist
     while (page := requests.get(expansion_url + str(page_number))).ok:
         page_number += 1
-        soup = SoupWrapper(BeautifulSoup(page.content, "html.parser"))
+        soup = WrappedSoup(page.content, "html.parser")
         card_list = soup.find("div", id="cardlist-container").find_all("li")
 
         for card in card_list:
@@ -110,7 +109,7 @@ def clean_expansion_dict(expansion_dict: dict):
 
 def scrap_expansions(expansions_url: str):
     page = requests.get(expansions_url)
-    soup = SoupWrapper(BeautifulSoup(page.content, "html.parser"))
+    soup = WrappedSoup(page.content, "html.parser")
     soup = soup.find("div", class_="cardlist_main")
 
     expansion_dicts = []
