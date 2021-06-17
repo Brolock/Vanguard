@@ -19,13 +19,15 @@ def index():
             links.append((url, rule.rule))
     return flask.render_template("all_links.html", links=links)
 
-@app.route("/scrap_url", methods=["GET", "POST"])
+@app.route("/scrap_url")
 def scrap_url():
-    if request.method == "POST":
-        try:
-            url_to_scrap = request.form["scrapped_url"] 
-            return scrap_card_data(url_to_scrap)
-        except KeyError:
-            return "Please add a scrapped_url form to your post request"
-    else:
-        return "Please make a POST request at this URL with a scrapped_url card you wish to get (only supports https://en.cf-vanguard.com/)"
+    if request.method == "GET":
+        if "url_to_scrap" in request.values:
+            url_to_scrap = request.values["url_to_scrap"] 
+            try:
+                return scrap_card_data(url_to_scrap)
+            except:
+                return "Invalid URL format provided to url_to_scrap please send a https://en.cf-vanguard.com card link"
+        else:
+            return "Please make a GET request at this URL with a url_to_scrap param. The form should be /scrap_url?url_to_scrap=*https://card/url* (only supports https://en.cf-vanguard.com/)"
+
