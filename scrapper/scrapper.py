@@ -170,6 +170,6 @@ if __name__ == "__main__":
 
     DB_DIR.mkdir(parents=True, exist_ok=True)
 
-    logger = scrapper_logger.get_logger(DB_DIR / "scrapper.log")
+    logger = get_logger(DB_DIR / "scrapper.log")
     logger.info(f"Logging to {DB_DIR / 'scrapper.log'}")
     scrap_expansions(VANGUARD_ROOT_URL + "/cardlist")
